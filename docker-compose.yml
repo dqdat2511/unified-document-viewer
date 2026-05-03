@@ -1,0 +1,175 @@
+services:
+  mysql:
+    image: mysql:8.0
+    mem_limit: 1g
+    container_name: doc-mysql
+    networks:
+      - app-network
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: docdb
+      MYSQL_INNODB_BUFFER_POOL_SIZE: 256M
+    command: --innodb-buffer-pool-size=256M --innodb-log-file-size=64M
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2
+    mem_limit: 128m
+    container_name: doc-redis
+    networks:
+      - app-network
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  sales-mock:
+    image: wiremock/wiremock:3.9.1
+    mem_limit: 256m
+    container_name: sales-mock
+    networks:
+      - app-network
+    command: ["--global-response-templating", "--verbose"]
+    volumes:
+      - ./mocks/sales/mappings:/home/wiremock/mappings
+    ports:
+      - "8090:8080"
+
+  service-mock:
+    image: wiremock/wiremock:3.9.1
+    mem_limit: 256m
+    container_name: service-mock
+    networks:
+      - app-network
+    command: ["--global-response-templating", "--verbose"]
+    volumes:
+      - ./mocks/service/mappings:/home/wiremock/mappings
+    ports:
+      - "8091:8080"
+
+  auth-service:
+    mem_limit: 512m
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: auth-service
+    networks:
+      - app-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      JWT_SECRET: "a2V5bG9vcC11bmlmaWVkLWRvY3VtZW50LXZpZXdlci1zZWNyZXQtMjAyNA=="
+      DB_URL: jdbc:mysql://mysql:3306/authdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      JAVA_OPTS: "-Xms64m -Xmx384m"
+    ports:
+      - "8081:8081"
+    restart: on-failure
+
+  document-service:
+    mem_limit: 512m
+    build:
+      context: .
+      dockerfile: document-service/Dockerfile
+    container_name: document-service
+    networks:
+      - app-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sales-mock:
+        condition: service_started
+      service-mock:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/docdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      DOCUMENT_SOURCE_MODE: mock
+      SALES_API_URL: http://sales-mock:8080
+      SERVICE_API_URL: http://service-mock:8080
+      JAVA_OPTS: "-Xms64m -Xmx384m"
+    ports:
+      - "8082:8082"
+    restart: on-failure
+
+  gateway-service:
+    mem_limit: 384m
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    container_name: gateway-service
+    networks:
+      - app-network
+    depends_on:
+      auth-service:
+        condition: service_started
+      document-service:
+        condition: service_started
+    environment:
+      AUTH_VALIDATE_URL: http://auth-service:8081/api/v1/auth/validate
+      AUTH_SERVICE_URL: http://auth-service:8081
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      JAVA_OPTS: "-Xms64m -Xmx256m"
+    ports:
+      - "8080:8080"
+    restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: prometheus
+    mem_limit: 256m
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1d
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    mem_limit: 256m
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  app-network:
+    driver: bridge

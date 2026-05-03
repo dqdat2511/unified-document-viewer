@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/vehicles/([^/]+)/documents"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "transformers": ["response-template"],
+    "jsonBody": [
+      {
+        "id": "SVC-001",
+        "vin": "{{request.pathSegments.[2]}}",
+        "name": "Oil Change Report",
+        "type": "PDF",
+        "url": "https://service-system.example.com/docs/SVC-001.pdf",
+        "created_at": "2024-03-10T08:00:00Z"
+      },
+      {
+        "id": "SVC-002",
+        "vin": "{{request.pathSegments.[2]}}",
+        "name": "Annual Inspection Certificate",
+        "type": "PDF",
+        "url": "https://service-system.example.com/docs/SVC-002.pdf",
+        "created_at": "2024-06-20T14:30:00Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+com/example/auth/application/AuthApplicationServiceTest.class
+com/example/auth/adapters/in/web/converter/AuthRequestConverterTest.class
+com/example/auth/adapters/in/web/converter/AuthResponseConverterTest.class

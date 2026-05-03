@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/vehicles/([^/]+)/documents"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "transformers": ["response-template"],
+    "jsonBody": [
+      {
+        "id": "SALES-001",
+        "vin": "{{request.pathSegments.[2]}}",
+        "name": "Purchase Invoice",
+        "type": "PDF",
+        "url": "https://sales-system.example.com/docs/SALES-001.pdf",
+        "created_at": "2024-01-15T10:30:00Z"
+      },
+      {
+        "id": "SALES-002",
+        "vin": "{{request.pathSegments.[2]}}",
+        "name": "Vehicle Registration Certificate",
+        "type": "PDF",
+        "url": "https://sales-system.example.com/docs/SALES-002.pdf",
+        "created_at": "2024-01-15T11:00:00Z"
+      },
+      {
+        "id": "SALES-003",
+        "vin": "{{request.pathSegments.[2]}}",
+        "name": "Warranty Card",
+        "type": "PDF",
+        "url": "https://sales-system.example.com/docs/SALES-003.pdf",
+        "created_at": "2024-01-16T09:15:00Z"
+      }
+    ]
+  }
+}

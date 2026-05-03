@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: Document Aggregation System API
+  version: 1.0.0
+  description: >
+    Unified API specification for the current microservice project.
+    Includes Auth, Document Aggregation, and Gateway Route Inspection endpoints.
+
+servers:
+  - url: http://localhost:8080
+    description: Gateway service (recommended public entrypoint)
+  - url: http://localhost:8081
+    description: Auth service (direct access)
+  - url: http://localhost:8082
+    description: Document service (direct access)
+
+tags:
+  - name: Auth
+    description: Authentication and token validation
+  - name: Documents
+    description: Unified document aggregation by VIN
+  - name: Gateway Routes
+    description: Gateway route catalog, resolution, and health
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user account
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              default:
+                value:
+                  username: john_doe
+                  password: Secret@123
+      responses:
+        '201':
+          description: Account created successfully
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: User login and JWT issue
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              default:
+                value:
+                  username: admin
+                  password: admin123
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                success:
+                  value:
+                    token: eyJhbGciOiJIUzI1NiJ9.example
+                    tokenType: Bearer
+                    expiresInSeconds: 3600
+                    role: ADMIN
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/auth/validate:
+    post:
+      tags: [Auth]
+      summary: Validate Authorization header token
+      operationId: validateToken
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Bearer token, for example Bearer eyJ...
+      responses:
+        '200':
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+              examples:
+                valid:
+                  value:
+                    valid: true
+                    username: admin
+                    role: ADMIN
+        '401':
+          description: Token invalid or missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+              examples:
+                invalid:
+                  value:
+                    valid: false
+                    username: null
+                    role: null
+
+  /api/v1/documents/{vin}:
+    get:
+      tags: [Documents]
+      summary: Get aggregated documents by VIN
+      operationId: getDocumentsByVin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vin
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z0-9-]{3,32}$'
+          description: VIN in uppercase alphanumeric format, length 3 to 32
+      responses:
+        '200':
+          description: Aggregated documents found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+              examples:
+                sample:
+                  value:
+                    vin: ABC123
+                    total: 5
+                    documents:
+                      - id: sales-1
+                        vin: ABC123
+                        name: Purchase Invoice
+                        type: invoice
+                        url: https://files.example/sales-1.pdf
+                        created_at: '2026-04-28T10:20:30Z'
+                        source: SALES
+                      - id: service-1
+                        vin: ABC123
+                        name: Oil Change Report
+                        type: service-report
+                        url: https://files.example/service-1.pdf
+                        created_at: '2026-04-29T09:15:10Z'
+                        source: SERVICE
+        '400':
+          description: Invalid VIN format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: VIN not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/gateway/routes:
+    get:
+      tags: [Gateway Routes]
+      summary: List active gateway routes
+      operationId: listGatewayRoutes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Route list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GatewayRouteResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/gateway/routes/resolve:
+    get:
+      tags: [Gateway Routes]
+      summary: Resolve downstream route for a given request path
+      operationId: resolveGatewayRoute
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Request path to resolve, for example /api/v1/documents/ABC123
+      responses:
+        '200':
+          description: Route resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayRouteResponse'
+        '404':
+          description: No matching route
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/gateway/routes/health:
+    get:
+      tags: [Gateway Routes]
+      summary: Check health status of downstream targets known by gateway
+      operationId: gatewayRoutesHealth
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Health list returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GatewayRouteHealthResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[a-zA-Z0-9_.\-]+$'
+          example: john_doe
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+          description: Must contain uppercase, lowercase, digit, and special character
+          example: Secret@123
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresInSeconds:
+          type: integer
+          format: int64
+        role:
+          type: string
+
+    ValidateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        username:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+
+    DocumentResponse:
+      type: object
+      properties:
+        vin:
+          type: string
+        total:
+          type: integer
+          format: int32
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentView'
+
+    DocumentView:
+      type: object
+      properties:
+        id:
+          type: string
+        vin:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        url:
+          type: string
+        created_at:
+          type: string
+          description: Creation timestamp as returned by external source
+        source:
+          type: string
+          example: SALES
+
+    GatewayRouteResponse:
+      type: object
+      properties:
+        routeId:
+          type: string
+        targetUri:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        pathPatterns:
+          type: array
+          items:
+            type: string
+        predicates:
+          type: array
+          items:
+            type: string
+        filters:
+          type: array
+          items:
+            type: string
+
+    GatewayRouteHealthResponse:
+      type: object
+      properties:
+        routeId:
+          type: string
+        targetUri:
+          type: string
+        healthUri:
+          type: string
+        status:
+          type: string
+          example: UP
+        httpStatus:
+          type: integer
+          format: int32
+
+    ApiError:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          format: int32
+        error:
+          type: string
+          description: Application error code
+        message:
+          type: string
+        path:
+          type: string
+        traceId:
+          type: string
+          nullable: true

@@ -1,0 +1,72 @@
+server:
+  port: 8082
+  shutdown: graceful
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+spring:
+  application:
+    name: document-service
+    env: local
+  messages:
+    basename: messageSource
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/docdb?useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  sql:
+    init:
+      mode: never 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+external:
+  sales:
+    url: ${SALES_API_URL:http://localhost:8090}
+  service:
+    url: ${SERVICE_API_URL:http://localhost:8091}
+
+feign:
+  client:
+    config:
+      default:
+        connect-timeout: 3000
+        read-timeout: 5000
+        logger-level: basic
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+document:
+  source-mode: ${DOCUMENT_SOURCE_MODE:live}
+  fetch:
+    timeout-seconds: 5
+
+caches:
+  use-cases:
+    documentsByVin:
+      expiration-ms: 300000
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId}]"
