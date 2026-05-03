@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+auth:
+  validate:
+    url: ${AUTH_VALIDATE_URL:http://localhost:8081/api/v1/auth/validate}
+
+routes:
+  auth-uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+  document-uri: ${DOCUMENT_SERVICE_URL:http://localhost:8082}
+
+spring:
+  cloud:
+    gateway:
+      metrics:
+        enabled: true
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 5s
+      default-filters:
+        - PreserveHostHeader
+      routes:
+        - id: auth-route
+          uri: ${routes.auth-uri}
+          metadata:
+            domain: auth
+            owner: platform
+          predicates:
+            - Path=/api/v1/auth/**
+        - id: document-route
+          uri: ${routes.document-uri}
+          metadata:
+            domain: documents
+            owner: platform
+          predicates:
+            - Path=/api/v1/documents/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway,health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+

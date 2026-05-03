@@ -1,0 +1,101 @@
+{
+  "title": "Document Aggregation System",
+  "uid": "doc-agg-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Request Rate (req/s) — per service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "sum(rate(http_server_requests_seconds_count[1m])) by (job)",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP P99 Latency (s) — per service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[1m])) by (le, job))",
+          "legendFormat": "p99 {{job}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Error Rate (4xx + 5xx)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "sum(rate(http_server_requests_seconds_count{status=~\"4..|5..\"}[1m])) by (job, status)",
+          "legendFormat": "{{job}} HTTP {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Document Aggregation Latency P99 (s)",
+      "description": "Custom metric from DocumentAggregationService via MeterRegistry",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(documents_aggregation_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p99 aggregation"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Redis Cache Hit vs Miss Rate",
+      "description": "Custom counters: documents.cache.hit / documents.cache.miss",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "rate(documents_cache_hit_total[1m])",
+          "legendFormat": "cache hit/s"
+        },
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "rate(documents_cache_miss_total[1m])",
+          "legendFormat": "cache miss/s"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "JVM Heap Used (MB) — per service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "jvm_memory_used_bytes{area=\"heap\"} / 1048576",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    }
+  ]
+}
